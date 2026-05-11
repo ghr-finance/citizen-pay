@@ -44,7 +44,7 @@ function IuranPage() {
   const [genOpen, setGenOpen] = useState(false);
 
   const save = useMutation({
-    mutationFn: (v: Parameters<typeof upsertFn>[0]["data"]) => upsertFn({ data: v }),
+    mutationFn: (v: { id?: string; name: string; amountDefault: number; period: "monthly" | "one_time"; active: boolean }) => upsertFn({ data: v }),
     onSuccess: () => { toast.success("Tersimpan"); qc.invalidateQueries({ queryKey: ["dues-types"] }); setOpen(false); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
   });
@@ -53,7 +53,7 @@ function IuranPage() {
     onSuccess: () => { toast.success("Dihapus"); qc.invalidateQueries({ queryKey: ["dues-types"] }); },
   });
   const generate = useMutation({
-    mutationFn: (v: Parameters<typeof genFn>[0]["data"]) => genFn({ data: v }),
+    mutationFn: (v: { duesTypeId: string; year: number; month: number; dueDate?: string | null }) => genFn({ data: v }),
     onSuccess: (r) => { toast.success(`${r.inserted} tagihan dibuat`); setGenOpen(false); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
   });

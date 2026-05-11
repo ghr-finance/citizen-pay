@@ -37,7 +37,7 @@ function PenggunaPage() {
   });
   const [open, setOpen] = useState(false);
   const create = useMutation({
-    mutationFn: (v: Parameters<typeof createFn>[0]["data"]) => createFn({ data: v }),
+    mutationFn: (v: { email: string; password: string; fullName: string; role: "admin" | "bendahara" }) => createFn({ data: v }),
     onSuccess: () => { toast.success("Pengguna dibuat"); qc.invalidateQueries({ queryKey: ["users"] }); setOpen(false); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
   });

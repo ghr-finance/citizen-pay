@@ -41,7 +41,7 @@ function TagihanPage() {
 
   const [payTarget, setPayTarget] = useState<Bill | null>(null);
   const pay = useMutation({
-    mutationFn: (v: Parameters<typeof payFn>[0]["data"]) => payFn({ data: v }),
+    mutationFn: (v: { billId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) => payFn({ data: v }),
     onSuccess: (r) => {
       toast.success(`Pembayaran tersimpan · ${r.receiptNo}`);
       qc.invalidateQueries({ queryKey: ["bills"] });

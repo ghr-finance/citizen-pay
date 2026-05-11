@@ -54,7 +54,7 @@ function WargaPage() {
   const [search, setSearch] = useState("");
 
   const save = useMutation({
-    mutationFn: (input: Parameters<typeof upsertFn>[0]["data"]) =>
+    mutationFn: (input: { id?: string; nik?: string | null; fullName: string; houseBlock?: string | null; houseNumber?: string | null; phone?: string | null; status: "active" | "inactive"; joinedAt?: string | null }) =>
       upsertFn({ data: input }),
     onSuccess: () => {
       toast.success("Tersimpan");
