@@ -82,21 +82,19 @@ export async function ensureMigrated(): Promise<void> {
   _migratingPromise = (async () => {
     const sql = getSql();
     for (const stmt of MIGRATIONS) {
-      // neon() tagged template needs raw query — use unsafe call signature
-      await sql(stmt);
+      await sql.query(stmt);
     }
-    // Seed initial admin
     const email = process.env.INITIAL_ADMIN_EMAIL;
     const password = process.env.INITIAL_ADMIN_PASSWORD;
     if (email && password) {
-      const existing = await sql(
+      const existing = (await sql.query(
         `SELECT id FROM users WHERE email = $1 LIMIT 1`,
         [email],
-      );
+      )) as Array<{ id: string }>;
       if (!existing.length) {
         const bcrypt = await import("bcryptjs");
         const hash = await bcrypt.hash(password, 10);
-        await sql(
+        await sql.query(
           `INSERT INTO users (email, password_hash, full_name, role)
            VALUES ($1, $2, $3, 'admin')`,
           [email, hash, "Administrator"],
@@ -119,6 +117,6 @@ export async function query<T = Record<string, unknown>>(
 ): Promise<T[]> {
   await ensureMigrated();
   const sql = getSql();
-  const rows = (await sql(text, params)) as unknown as T[];
+  const rows = (await sql.query(text, params)) as unknown as T[];
   return rows;
 }
