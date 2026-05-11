@@ -28,14 +28,14 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthLayout,
 });
 
-const NAV = [
+const NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; end?: boolean }> = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/warga", label: "Warga", icon: Users },
   { to: "/iuran", label: "Jenis Iuran", icon: ClipboardList },
   { to: "/tagihan", label: "Tagihan", icon: Receipt },
   { to: "/pembayaran", label: "Pembayaran", icon: Wallet },
   { to: "/laporan", label: "Laporan", icon: FileText },
-] as const;
+];
 
 function AuthLayout() {
   const { user } = Route.useRouteContext();
