@@ -91,6 +91,12 @@ function TransaksiPage() {
     setCustomCategory("");
   };
 
+  const pickIplNominal = (n: number | "lainnya") => {
+    setIplNominal(n);
+    if (n !== "lainnya") setAmount(String(n));
+    else setAmount("");
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const num = Number(amount.replace(/[^\d.-]/g, ""));
@@ -100,6 +106,25 @@ function TransaksiPage() {
     }
     const finalCategory =
       category === "Lainnya" && customCategory.trim() ? customCategory.trim() : category;
+
+    let finalDescription = description;
+    if (isIPL) {
+      if (iplSource === "warga") {
+        if (!iplResidentId) {
+          toast.error("Pilih warga terlebih dahulu");
+          return;
+        }
+        const r = residentsQuery.data?.residents.find((x) => x.id === iplResidentId);
+        if (r) {
+          const blok = [r.house_block, r.house_number].filter(Boolean).join("/");
+          const label = `IPL · ${r.full_name}${blok ? ` (${blok})` : ""}`;
+          finalDescription = description ? `${label} — ${description}` : label;
+        }
+      } else {
+        finalDescription = description ? `IPL · Lainnya — ${description}` : "IPL · Lainnya";
+      }
+    }
+
     setSubmitting(true);
     try {
       await createFn({
@@ -109,13 +134,16 @@ function TransaksiPage() {
           amount: num,
           occurredAt,
           method,
-          description: description || null,
+          description: finalDescription || null,
         },
       });
       toast.success("Transaksi tersimpan");
       setAmount("");
       setDescription("");
       setCustomCategory("");
+      setIplResidentId("");
+      setIplNominal(175000);
+      if (isIPL) setAmount("175000");
       qc.invalidateQueries({ queryKey: ["transactions"] });
     } catch (err) {
       toast.error((err as Error).message);
