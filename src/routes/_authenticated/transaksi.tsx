@@ -39,6 +39,7 @@ function TransaksiPage() {
   const fetchList = useServerFn(listTransactions);
   const createFn = useServerFn(createTransaction);
   const deleteFn = useServerFn(deleteTransaction);
+  const fetchResidents = useServerFn(listResidents);
 
   const now = new Date();
   const [year, setYear] = useState<number | null>(now.getFullYear());
