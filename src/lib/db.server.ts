@@ -74,6 +74,19 @@ const MIGRATIONS = [
     recorded_by uuid REFERENCES users(id) ON DELETE SET NULL
   )`,
   `CREATE INDEX IF NOT EXISTS payments_paid_at_idx ON payments(paid_at)`,
+  `CREATE TABLE IF NOT EXISTS transactions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    type text NOT NULL CHECK (type IN ('income','expense')),
+    category text NOT NULL,
+    amount numeric(14,2) NOT NULL,
+    occurred_at date NOT NULL DEFAULT CURRENT_DATE,
+    description text,
+    method text NOT NULL DEFAULT 'cash' CHECK (method IN ('cash','transfer','qris')),
+    recorded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS transactions_occurred_at_idx ON transactions(occurred_at)`,
+  `CREATE INDEX IF NOT EXISTS transactions_type_idx ON transactions(type)`,
 ];
 
 export async function ensureMigrated(): Promise<void> {
