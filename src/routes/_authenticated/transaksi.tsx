@@ -69,6 +69,18 @@ function TransaksiPage() {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // IPL-specific
+  const [iplSource, setIplSource] = useState<"warga" | "lainnya">("warga");
+  const [iplResidentId, setIplResidentId] = useState<string>("");
+  const [iplNominal, setIplNominal] = useState<number | "lainnya" | null>(175000);
+
+  const isIPL = type === "income" && category === "IPL";
+  const residentsQuery = useQuery({
+    queryKey: ["residents-ipl"],
+    queryFn: () => fetchResidents(),
+    enabled: isIPL && iplSource === "warga",
+  });
+
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   const switchType = (t: TxType) => {
