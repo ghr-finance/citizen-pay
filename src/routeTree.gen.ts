@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWargaRouteImport } from './routes/_authenticated/warga'
+import { Route as AuthenticatedTransaksiRouteImport } from './routes/_authenticated/transaksi'
 import { Route as AuthenticatedTagihanRouteImport } from './routes/_authenticated/tagihan'
 import { Route as AuthenticatedPenggunaRouteImport } from './routes/_authenticated/pengguna'
 import { Route as AuthenticatedPembayaranRouteImport } from './routes/_authenticated/pembayaran'
@@ -36,6 +37,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedWargaRoute = AuthenticatedWargaRouteImport.update({
   id: '/warga',
   path: '/warga',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTransaksiRoute = AuthenticatedTransaksiRouteImport.update({
+  id: '/transaksi',
+  path: '/transaksi',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTagihanRoute = AuthenticatedTagihanRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/pembayaran': typeof AuthenticatedPembayaranRoute
   '/pengguna': typeof AuthenticatedPenggunaRoute
   '/tagihan': typeof AuthenticatedTagihanRoute
+  '/transaksi': typeof AuthenticatedTransaksiRoute
   '/warga': typeof AuthenticatedWargaRoute
 }
 export interface FileRoutesByTo {
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/pembayaran': typeof AuthenticatedPembayaranRoute
   '/pengguna': typeof AuthenticatedPenggunaRoute
   '/tagihan': typeof AuthenticatedTagihanRoute
+  '/transaksi': typeof AuthenticatedTransaksiRoute
   '/warga': typeof AuthenticatedWargaRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/_authenticated/pembayaran': typeof AuthenticatedPembayaranRoute
   '/_authenticated/pengguna': typeof AuthenticatedPenggunaRoute
   '/_authenticated/tagihan': typeof AuthenticatedTagihanRoute
+  '/_authenticated/transaksi': typeof AuthenticatedTransaksiRoute
   '/_authenticated/warga': typeof AuthenticatedWargaRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/pembayaran'
     | '/pengguna'
     | '/tagihan'
+    | '/transaksi'
     | '/warga'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/pembayaran'
     | '/pengguna'
     | '/tagihan'
+    | '/transaksi'
     | '/warga'
     | '/'
   id:
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pembayaran'
     | '/_authenticated/pengguna'
     | '/_authenticated/tagihan'
+    | '/_authenticated/transaksi'
     | '/_authenticated/warga'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -163,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/warga'
       fullPath: '/warga'
       preLoaderRoute: typeof AuthenticatedWargaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/transaksi': {
+      id: '/_authenticated/transaksi'
+      path: '/transaksi'
+      fullPath: '/transaksi'
+      preLoaderRoute: typeof AuthenticatedTransaksiRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/tagihan': {
@@ -209,6 +228,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPembayaranRoute: typeof AuthenticatedPembayaranRoute
   AuthenticatedPenggunaRoute: typeof AuthenticatedPenggunaRoute
   AuthenticatedTagihanRoute: typeof AuthenticatedTagihanRoute
+  AuthenticatedTransaksiRoute: typeof AuthenticatedTransaksiRoute
   AuthenticatedWargaRoute: typeof AuthenticatedWargaRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
@@ -219,6 +239,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPembayaranRoute: AuthenticatedPembayaranRoute,
   AuthenticatedPenggunaRoute: AuthenticatedPenggunaRoute,
   AuthenticatedTagihanRoute: AuthenticatedTagihanRoute,
+  AuthenticatedTransaksiRoute: AuthenticatedTransaksiRoute,
   AuthenticatedWargaRoute: AuthenticatedWargaRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
@@ -234,3 +255,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
