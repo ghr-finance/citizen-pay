@@ -286,6 +286,89 @@ function TransaksiPage() {
                 )}
               </div>
 
+              {isIPL && (
+                <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    <Users className="size-3.5" /> Detail IPL
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Sumber</Label>
+                    <Select
+                      value={iplSource}
+                      onValueChange={(v) => {
+                        setIplSource(v as "warga" | "lainnya");
+                        setIplResidentId("");
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="warga">Warga</SelectItem>
+                        <SelectItem value="lainnya">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {iplSource === "warga" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Pilih Warga</Label>
+                      <Select value={iplResidentId} onValueChange={setIplResidentId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={residentsQuery.isLoading ? "Memuat..." : "Pilih warga"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(residentsQuery.data?.residents ?? []).map((r) => {
+                            const blok = [r.house_block, r.house_number].filter(Boolean).join("/");
+                            return (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.full_name}{blok ? ` · ${blok}` : ""}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Nominal IPL</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {IPL_NOMINALS.map((n) => {
+                        const active = iplNominal === n;
+                        return (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => pickIplNominal(n)}
+                            className={cn(
+                              "rounded-lg border px-3 py-2.5 text-sm font-medium tabular-nums transition",
+                              active
+                                ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                                : "border-border bg-background hover:border-emerald-500/50 hover:bg-emerald-500/5",
+                            )}
+                          >
+                            {formatRupiah(n)}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => pickIplNominal("lainnya")}
+                        className={cn(
+                          "rounded-lg border px-3 py-2.5 text-sm font-medium transition",
+                          iplNominal === "lainnya"
+                            ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                            : "border-border bg-background hover:border-emerald-500/50 hover:bg-emerald-500/5",
+                        )}
+                      >
+                        Lainnya
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Tanggal</Label>
