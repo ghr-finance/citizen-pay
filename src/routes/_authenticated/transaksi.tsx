@@ -10,6 +10,7 @@ import {
   INCOME_CATEGORIES,
   EXPENSE_CATEGORIES,
 } from "@/lib/transactions.functions";
+import { listResidents } from "@/lib/residents.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +22,11 @@ import {
 } from "@/components/ui/select";
 import { formatRupiah, formatTanggal, BULAN_ID } from "@/lib/format";
 import {
-  ArrowDownCircle, ArrowUpCircle, Plus, Trash2, Wallet, TrendingUp, TrendingDown,
+  ArrowDownCircle, ArrowUpCircle, Plus, Trash2, Wallet, TrendingUp, TrendingDown, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const IPL_NOMINALS = [175000, 200000] as const;
 
 export const Route = createFileRoute("/_authenticated/transaksi")({
   component: TransaksiPage,
