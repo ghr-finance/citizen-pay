@@ -10,6 +10,7 @@ import {
   INCOME_CATEGORIES,
   EXPENSE_CATEGORIES,
 } from "@/lib/transactions.functions";
+import { listResidents } from "@/lib/residents.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +22,11 @@ import {
 } from "@/components/ui/select";
 import { formatRupiah, formatTanggal, BULAN_ID } from "@/lib/format";
 import {
-  ArrowDownCircle, ArrowUpCircle, Plus, Trash2, Wallet, TrendingUp, TrendingDown,
+  ArrowDownCircle, ArrowUpCircle, Plus, Trash2, Wallet, TrendingUp, TrendingDown, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const IPL_NOMINALS = [175000, 200000] as const;
 
 export const Route = createFileRoute("/_authenticated/transaksi")({
   component: TransaksiPage,
@@ -36,6 +39,7 @@ function TransaksiPage() {
   const fetchList = useServerFn(listTransactions);
   const createFn = useServerFn(createTransaction);
   const deleteFn = useServerFn(deleteTransaction);
+  const fetchResidents = useServerFn(listResidents);
 
   const now = new Date();
   const [year, setYear] = useState<number | null>(now.getFullYear());
@@ -66,6 +70,18 @@ function TransaksiPage() {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // IPL-specific
+  const [iplSource, setIplSource] = useState<"warga" | "lainnya">("warga");
+  const [iplResidentId, setIplResidentId] = useState<string>("");
+  const [iplNominal, setIplNominal] = useState<number | "lainnya" | null>(175000);
+
+  const isIPL = type === "income" && category === "IPL";
+  const residentsQuery = useQuery({
+    queryKey: ["residents-ipl"],
+    queryFn: () => fetchResidents(),
+    enabled: isIPL && iplSource === "warga",
+  });
+
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   const switchType = (t: TxType) => {
@@ -73,6 +89,12 @@ function TransaksiPage() {
     const cats = t === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
     setCategory(cats[0]);
     setCustomCategory("");
+  };
+
+  const pickIplNominal = (n: number | "lainnya") => {
+    setIplNominal(n);
+    if (n !== "lainnya") setAmount(String(n));
+    else setAmount("");
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -84,6 +106,25 @@ function TransaksiPage() {
     }
     const finalCategory =
       category === "Lainnya" && customCategory.trim() ? customCategory.trim() : category;
+
+    let finalDescription = description;
+    if (isIPL) {
+      if (iplSource === "warga") {
+        if (!iplResidentId) {
+          toast.error("Pilih warga terlebih dahulu");
+          return;
+        }
+        const r = residentsQuery.data?.residents.find((x) => x.id === iplResidentId);
+        if (r) {
+          const blok = [r.house_block, r.house_number].filter(Boolean).join("/");
+          const label = `IPL · ${r.full_name}${blok ? ` (${blok})` : ""}`;
+          finalDescription = description ? `${label} — ${description}` : label;
+        }
+      } else {
+        finalDescription = description ? `IPL · Lainnya — ${description}` : "IPL · Lainnya";
+      }
+    }
+
     setSubmitting(true);
     try {
       await createFn({
@@ -93,13 +134,16 @@ function TransaksiPage() {
           amount: num,
           occurredAt,
           method,
-          description: description || null,
+          description: finalDescription || null,
         },
       });
       toast.success("Transaksi tersimpan");
       setAmount("");
       setDescription("");
       setCustomCategory("");
+      setIplResidentId("");
+      setIplNominal(175000);
+      if (isIPL) setAmount("175000");
       qc.invalidateQueries({ queryKey: ["transactions"] });
     } catch (err) {
       toast.error((err as Error).message);
@@ -242,6 +286,89 @@ function TransaksiPage() {
                 )}
               </div>
 
+              {isIPL && (
+                <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    <Users className="size-3.5" /> Detail IPL
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Sumber</Label>
+                    <Select
+                      value={iplSource}
+                      onValueChange={(v) => {
+                        setIplSource(v as "warga" | "lainnya");
+                        setIplResidentId("");
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="warga">Warga</SelectItem>
+                        <SelectItem value="lainnya">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {iplSource === "warga" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Pilih Warga</Label>
+                      <Select value={iplResidentId} onValueChange={setIplResidentId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={residentsQuery.isLoading ? "Memuat..." : "Pilih warga"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(residentsQuery.data?.residents ?? []).map((r) => {
+                            const blok = [r.house_block, r.house_number].filter(Boolean).join("/");
+                            return (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.full_name}{blok ? ` · ${blok}` : ""}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Nominal IPL</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {IPL_NOMINALS.map((n) => {
+                        const active = iplNominal === n;
+                        return (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => pickIplNominal(n)}
+                            className={cn(
+                              "rounded-lg border px-3 py-2.5 text-sm font-medium tabular-nums transition",
+                              active
+                                ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                                : "border-border bg-background hover:border-emerald-500/50 hover:bg-emerald-500/5",
+                            )}
+                          >
+                            {formatRupiah(n)}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => pickIplNominal("lainnya")}
+                        className={cn(
+                          "rounded-lg border px-3 py-2.5 text-sm font-medium transition",
+                          iplNominal === "lainnya"
+                            ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                            : "border-border bg-background hover:border-emerald-500/50 hover:bg-emerald-500/5",
+                        )}
+                      >
+                        Lainnya
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Tanggal</Label>
