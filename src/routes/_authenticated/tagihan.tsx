@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRupiah, BULAN_ID, formatTanggal } from "@/lib/format";
-import { Wallet, FileDown, RefreshCw, FileText } from "lucide-react";
+import { Wallet, FileDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tagihan")({
