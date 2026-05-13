@@ -114,6 +114,17 @@ export async function ensureMigrated(): Promise<void> {
         );
       }
     }
+    // Seed jenis iuran default jika belum ada
+    const dt = (await sql.query(
+      `SELECT COUNT(*)::int AS c FROM dues_types`,
+    )) as Array<{ c: number }>;
+    if (dt[0].c === 0) {
+      await sql.query(
+        `INSERT INTO dues_types (name, amount_default, period, active) VALUES
+          ('IPL', 200000, 'monthly', true),
+          ('Iuran RT', 50000, 'monthly', true)`,
+      );
+    }
     _migrated = true;
   })();
   try {
