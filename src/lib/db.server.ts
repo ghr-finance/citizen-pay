@@ -87,6 +87,20 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS transactions_occurred_at_idx ON transactions(occurred_at)`,
   `CREATE INDEX IF NOT EXISTS transactions_type_idx ON transactions(type)`,
+  `CREATE TABLE IF NOT EXISTS staff (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    resident_id uuid REFERENCES residents(id) ON DELETE SET NULL,
+    full_name text NOT NULL,
+    phone text,
+    position text NOT NULL CHECK (position IN ('keamanan','kebersihan','dkm','ketua','bendahara')),
+    source text NOT NULL DEFAULT 'warga' CHECK (source IN ('warga','eksternal')),
+    note text,
+    active boolean NOT NULL DEFAULT true,
+    joined_at date,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS staff_position_idx ON staff(position)`,
+  `CREATE INDEX IF NOT EXISTS staff_active_idx ON staff(active)`,
 ];
 
 export async function ensureMigrated(): Promise<void> {

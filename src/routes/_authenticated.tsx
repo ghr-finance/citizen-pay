@@ -17,6 +17,7 @@ import {
   UserCog,
   LogOut,
   ArrowLeftRight,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -36,6 +37,7 @@ const NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; end?
   { to: "/tagihan", label: "Tagihan", icon: Receipt },
   { to: "/pembayaran", label: "Pembayaran", icon: Wallet },
   { to: "/transaksi", label: "Transaksi", icon: ArrowLeftRight },
+  { to: "/petugas", label: "Petugas", icon: ShieldCheck },
   { to: "/laporan", label: "Laporan", icon: FileText },
 ];
 
