@@ -116,17 +116,17 @@ export async function ensureMigrated(): Promise<void> {
         const passwordMatches = await bcrypt.compare(password, existing[0].password_hash);
         if (!passwordMatches) {
           const hash = await bcrypt.hash(password, 10);
-          await sql.query(
-            `UPDATE users SET password_hash = $1, role = 'admin' WHERE id = $2`,
-            [hash, existing[0].id],
-          );
+          await sql.query(`UPDATE users SET password_hash = $1, role = 'admin' WHERE id = $2`, [
+            hash,
+            existing[0].id,
+          ]);
         }
       }
     }
     // Seed jenis iuran default jika belum ada
-    const dt = (await sql.query(
-      `SELECT COUNT(*)::int AS c FROM dues_types`,
-    )) as Array<{ c: number }>;
+    const dt = (await sql.query(`SELECT COUNT(*)::int AS c FROM dues_types`)) as Array<{
+      c: number;
+    }>;
     if (dt[0].c === 0) {
       await sql.query(
         `INSERT INTO dues_types (name, amount_default, period, active) VALUES

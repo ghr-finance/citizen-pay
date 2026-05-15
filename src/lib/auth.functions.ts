@@ -1,11 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "./db.server";
-import {
-  createSession,
-  readSession,
-  clearSessionCookie,
-} from "./session.server";
+import { createSession, readSession, clearSessionCookie } from "./session.server";
 
 const LoginInput = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
@@ -90,9 +86,7 @@ export const listUsers = createServerFn({ method: "GET" }).handler(async () => {
     full_name: string;
     role: string;
     created_at: string;
-  }>(
-    `SELECT id, email, full_name, role, created_at FROM users ORDER BY created_at DESC`,
-  );
+  }>(`SELECT id, email, full_name, role, created_at FROM users ORDER BY created_at DESC`);
   return { users: rows };
 });
 
