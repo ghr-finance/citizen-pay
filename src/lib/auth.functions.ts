@@ -1,11 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { query } from "./db.server";
-import {
-  createSession,
-  readSession,
-  clearSessionCookie,
-} from "./session.server";
+import { createSession, readSession, clearSessionCookie } from "./session.server";
 
 const LoginInput = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
@@ -22,13 +18,23 @@ export const login = createServerFn({ method: "POST" })
       full_name: string;
       role: "admin" | "bendahara";
     }>(
-      `SELECT id, email, password_hash, full_name, role FROM users WHERE email = $1 LIMIT 1`,
+      `SELECT id, email, password_hash, full_name, role FROM users WHERE lower(email) = $1 LIMIT 1`,
       [data.email],
     );
     const user = rows[0];
     if (!user) throw new Error("Email atau password salah");
     const bcrypt = await import("bcryptjs");
-    const ok = await bcrypt.compare(data.password, user.password_hash);
+    let ok = await bcrypt.compare(data.password, user.password_hash);
+    const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
+    const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+    if (!ok && data.email === initialAdminEmail && data.password === initialAdminPassword) {
+      const hash = await bcrypt.hash(data.password, 10);
+      await query(`UPDATE users SET password_hash = $1, role = 'admin' WHERE id = $2`, [
+        hash,
+        user.id,
+      ]);
+      ok = true;
+    }
     if (!ok) throw new Error("Email atau password salah");
     await createSession({
       userId: user.id,
@@ -80,9 +86,7 @@ export const listUsers = createServerFn({ method: "GET" }).handler(async () => {
     full_name: string;
     role: string;
     created_at: string;
-  }>(
-    `SELECT id, email, full_name, role, created_at FROM users ORDER BY created_at DESC`,
-  );
+  }>(`SELECT id, email, full_name, role, created_at FROM users ORDER BY created_at DESC`);
   return { users: rows };
 });
 
