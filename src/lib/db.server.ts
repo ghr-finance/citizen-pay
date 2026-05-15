@@ -97,21 +97,30 @@ export async function ensureMigrated(): Promise<void> {
     for (const stmt of MIGRATIONS) {
       await sql.query(stmt);
     }
-    const email = process.env.INITIAL_ADMIN_EMAIL;
+    const email = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
     const password = process.env.INITIAL_ADMIN_PASSWORD;
     if (email && password) {
       const existing = (await sql.query(
-        `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+        `SELECT id, password_hash FROM users WHERE lower(email) = $1 LIMIT 1`,
         [email],
-      )) as Array<{ id: string }>;
+      )) as Array<{ id: string; password_hash: string }>;
+      const bcrypt = await import("bcryptjs");
       if (!existing.length) {
-        const bcrypt = await import("bcryptjs");
         const hash = await bcrypt.hash(password, 10);
         await sql.query(
           `INSERT INTO users (email, password_hash, full_name, role)
            VALUES ($1, $2, $3, 'admin')`,
           [email, hash, "Administrator"],
         );
+      } else {
+        const passwordMatches = await bcrypt.compare(password, existing[0].password_hash);
+        if (!passwordMatches) {
+          const hash = await bcrypt.hash(password, 10);
+          await sql.query(
+            `UPDATE users SET password_hash = $1, role = 'admin' WHERE id = $2`,
+            [hash, existing[0].id],
+          );
+        }
       }
     }
     // Seed jenis iuran default jika belum ada
