@@ -67,9 +67,19 @@ function PetugasPage() {
   const [editing, setEditing] = useState<StaffRow | null>(null);
   const [search, setSearch] = useState("");
 
+  type SaveInput = {
+    id?: string;
+    residentId?: string | null;
+    fullName: string;
+    phone?: string | null;
+    position: StaffPosition;
+    source: "warga" | "eksternal";
+    note?: string | null;
+    active: boolean;
+    joinedAt?: string | null;
+  };
   const save = useMutation({
-    mutationFn: (input: Parameters<typeof upsertFn>[0]["data"]) =>
-      upsertFn({ data: input }),
+    mutationFn: (input: SaveInput) => upsertFn({ data: input }),
     onSuccess: () => {
       toast.success("Tersimpan");
       qc.invalidateQueries({ queryKey: ["staff"] });
