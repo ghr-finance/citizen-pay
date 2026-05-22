@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   listResidents,
   upsertResident,
   deleteResident,
+  listStatusHistory,
+  addStatusChange,
+  deleteStatusChange,
 } from "@/lib/residents.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +43,24 @@ type Resident = {
   joined_at: string | null;
 };
 
+type SaveInput = {
+  id?: string;
+  nik?: string | null;
+  fullName: string;
+  houseBlock?: string | null;
+  houseNumber?: string | null;
+  phone?: string | null;
+  status: "active" | "inactive";
+  joinedAt?: string | null;
+  statusEffectiveYear?: number;
+  statusEffectiveMonth?: number;
+};
+
+const MONTHS = [
+  "Januari","Februari","Maret","April","Mei","Juni",
+  "Juli","Agustus","September","Oktober","November","Desember",
+];
+
 function WargaPage() {
   const fetchList = useServerFn(listResidents);
   const upsertFn = useServerFn(upsertResident);
@@ -54,8 +75,7 @@ function WargaPage() {
   const [search, setSearch] = useState("");
 
   const save = useMutation({
-    mutationFn: (input: { id?: string; nik?: string | null; fullName: string; houseBlock?: string | null; houseNumber?: string | null; phone?: string | null; status: "active" | "inactive"; joinedAt?: string | null }) =>
-      upsertFn({ data: input }),
+    mutationFn: (input: SaveInput) => upsertFn({ data: input }),
     onSuccess: () => {
       toast.success("Tersimpan");
       qc.invalidateQueries({ queryKey: ["residents"] });
@@ -84,7 +104,7 @@ function WargaPage() {
       <div className="flex flex-wrap items-end gap-3 justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold">Data Warga</h1>
-          <p className="text-muted-foreground">Kelola data warga dan status keanggotaan</p>
+          <p className="text-muted-foreground">Kelola data warga dan riwayat status keanggotaan</p>
         </div>
         <Button onClick={() => { setEditing(null); setOpen(true); }}>
           <Plus className="size-4 mr-2" /> Tambah Warga
@@ -171,13 +191,10 @@ function ResidentDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial: Resident | null;
-  onSave: (v: {
-    id?: string; nik?: string | null; fullName: string;
-    houseBlock?: string | null; houseNumber?: string | null;
-    phone?: string | null; status: "active" | "inactive"; joinedAt?: string | null;
-  }) => void;
+  onSave: (v: SaveInput) => void;
   saving: boolean;
 }) {
+  const now = new Date();
   const [fullName, setFullName] = useState(initial?.full_name || "");
   const [nik, setNik] = useState(initial?.nik || "");
   const [houseBlock, setHouseBlock] = useState(initial?.house_block || "");
@@ -187,13 +204,29 @@ function ResidentDialog({
     (initial?.status as "active" | "inactive") || "active",
   );
   const [joinedAt, setJoinedAt] = useState(initial?.joined_at?.slice(0, 10) || "");
+  const [effYear, setEffYear] = useState<number>(2026);
+  const [effMonth, setEffMonth] = useState<number>(1);
 
-  // Reset when reopening
-  useStateReset({ initial, open, setFullName, setNik, setHouseBlock, setHouseNumber, setPhone, setStatus, setJoinedAt });
+  useEffect(() => {
+    if (!open) return;
+    setFullName(initial?.full_name || "");
+    setNik(initial?.nik || "");
+    setHouseBlock(initial?.house_block || "");
+    setHouseNumber(initial?.house_number || "");
+    setPhone(initial?.phone || "");
+    setStatus((initial?.status as "active" | "inactive") || "active");
+    setJoinedAt(initial?.joined_at?.slice(0, 10) || "");
+    setEffYear(now.getFullYear());
+    setEffMonth(now.getMonth() + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial]);
+
+  const statusChanged = !!initial && status !== (initial.status as string);
+  const showEffective = !initial || statusChanged;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initial ? "Edit Warga" : "Tambah Warga"}</DialogTitle>
         </DialogHeader>
@@ -238,6 +271,37 @@ function ResidentDialog({
               </Select>
             </div>
           </div>
+
+          {showEffective && (
+            <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2">
+              <Label className="text-sm">
+                {initial
+                  ? "Berlaku sejak (perubahan status akan dicatat)"
+                  : "Status awal berlaku sejak"}
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Select value={String(effMonth)} onValueChange={(v) => setEffMonth(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map((m, i) => (
+                      <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  value={effYear}
+                  onChange={(e) => setEffYear(Number(e.target.value) || 2026)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Status ini akan dipakai saat menghitung tagihan mulai periode tersebut.
+                Tagihan sebelum periode ini tetap memakai status lama.
+              </p>
+            </div>
+          )}
+
+          {initial && <StatusHistoryEditor residentId={initial.id} />}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Batal</Button>
@@ -253,6 +317,8 @@ function ResidentDialog({
                 phone: phone.trim() || null,
                 status,
                 joinedAt: joinedAt || null,
+                statusEffectiveYear: showEffective ? effYear : undefined,
+                statusEffectiveMonth: showEffective ? effMonth : undefined,
               })
             }
           >
@@ -264,27 +330,118 @@ function ResidentDialog({
   );
 }
 
-import { useEffect } from "react";
-function useStateReset(args: {
-  initial: Resident | null;
-  open: boolean;
-  setFullName: (v: string) => void;
-  setNik: (v: string) => void;
-  setHouseBlock: (v: string) => void;
-  setHouseNumber: (v: string) => void;
-  setPhone: (v: string) => void;
-  setStatus: (v: "active" | "inactive") => void;
-  setJoinedAt: (v: string) => void;
-}) {
-  useEffect(() => {
-    if (!args.open) return;
-    args.setFullName(args.initial?.full_name || "");
-    args.setNik(args.initial?.nik || "");
-    args.setHouseBlock(args.initial?.house_block || "");
-    args.setHouseNumber(args.initial?.house_number || "");
-    args.setPhone(args.initial?.phone || "");
-    args.setStatus((args.initial?.status as "active" | "inactive") || "active");
-    args.setJoinedAt(args.initial?.joined_at?.slice(0, 10) || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [args.open, args.initial]);
+function StatusHistoryEditor({ residentId }: { residentId: string }) {
+  const listFn = useServerFn(listStatusHistory);
+  const addFn = useServerFn(addStatusChange);
+  const delFn = useServerFn(deleteStatusChange);
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["status-history", residentId],
+    queryFn: () => listFn({ data: { residentId } }),
+  });
+
+  const now = new Date();
+  const [status, setStatus] = useState<"active" | "inactive">("active");
+  const [year, setYear] = useState<number>(now.getFullYear());
+  const [month, setMonth] = useState<number>(now.getMonth() + 1);
+
+  const add = useMutation({
+    mutationFn: () => addFn({ data: { residentId, status, year, month } }),
+    onSuccess: () => {
+      toast.success("Riwayat ditambahkan");
+      qc.invalidateQueries({ queryKey: ["status-history", residentId] });
+      qc.invalidateQueries({ queryKey: ["residents"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => delFn({ data: { id, residentId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["status-history", residentId] });
+      qc.invalidateQueries({ queryKey: ["residents"] });
+    },
+  });
+
+  const history = data?.history ?? [];
+
+  return (
+    <div className="rounded-md border border-border p-3 space-y-3">
+      <div>
+        <Label className="text-sm">Riwayat Status</Label>
+        <p className="text-xs text-muted-foreground">
+          Status pada periode tertentu menentukan nominal tagihan yang dibuat untuk periode itu.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        {isLoading && <p className="text-xs text-muted-foreground">Memuat…</p>}
+        {!isLoading && history.length === 0 && (
+          <p className="text-xs text-muted-foreground">Belum ada entri.</p>
+        )}
+        {history.map((h) => (
+          <div
+            key={h.id}
+            className="flex items-center justify-between rounded border border-border/60 px-2 py-1 text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <Badge variant={h.status === "active" ? "default" : "secondary"}>
+                {h.status === "active" ? "Aktif" : "Tidak aktif"}
+              </Badge>
+              <span className="font-mono">
+                {MONTHS[h.effective_month - 1]} {h.effective_year}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                if (confirm("Hapus entri ini?")) remove.mutate(h.id);
+              }}
+            >
+              <Trash2 className="size-4 text-destructive" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+        <div className="space-y-1">
+          <Label className="text-xs">Status</Label>
+          <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Aktif</SelectItem>
+              <SelectItem value="inactive">Tidak aktif</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Bulan</Label>
+          <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MONTHS.map((m, i) => (
+                <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Tahun</Label>
+          <Input
+            type="number"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value) || now.getFullYear())}
+          />
+        </div>
+        <Button
+          variant="secondary"
+          disabled={add.isPending}
+          onClick={() => add.mutate()}
+        >
+          <Plus className="size-4 mr-1" /> Tambah
+        </Button>
+      </div>
+    </div>
+  );
 }
