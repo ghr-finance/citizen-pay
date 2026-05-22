@@ -80,3 +80,24 @@ export function periodsUpToNow(now = new Date()): Array<{ year: number; month: n
   }
   return list;
 }
+
+/**
+ * Tentukan status warga pada periode (year, month) berdasarkan riwayat status.
+ * Riwayat diasumsikan sudah terurut ASC (effective_year, effective_month).
+ * Bila tidak ada entri ≤ periode tersebut, gunakan fallback (status terkini).
+ */
+export function statusAtPeriod(
+  history: Array<{ status: "active" | "inactive"; effective_year: number; effective_month: number }>,
+  year: number,
+  month: number,
+  fallback: "active" | "inactive",
+): "active" | "inactive" {
+  const key = year * 12 + (month - 1);
+  let current: "active" | "inactive" | null = null;
+  for (const h of history) {
+    const hKey = h.effective_year * 12 + (h.effective_month - 1);
+    if (hKey <= key) current = h.status;
+    else break;
+  }
+  return current ?? fallback;
+}

@@ -101,6 +101,24 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS staff_position_idx ON staff(position)`,
   `CREATE INDEX IF NOT EXISTS staff_active_idx ON staff(active)`,
+  `CREATE TABLE IF NOT EXISTS resident_status_history (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    resident_id uuid NOT NULL REFERENCES residents(id) ON DELETE CASCADE,
+    status text NOT NULL CHECK (status IN ('active','inactive')),
+    effective_year int NOT NULL,
+    effective_month int NOT NULL,
+    note text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (resident_id, effective_year, effective_month)
+  )`,
+  `CREATE INDEX IF NOT EXISTS rsh_resident_period_idx
+     ON resident_status_history(resident_id, effective_year, effective_month)`,
+  // Backfill: warga yang belum punya riwayat → seed status saat ini di Jan 2026
+  `INSERT INTO resident_status_history (resident_id, status, effective_year, effective_month)
+     SELECT r.id, r.status, 2026, 1 FROM residents r
+     WHERE NOT EXISTS (
+       SELECT 1 FROM resident_status_history h WHERE h.resident_id = r.id
+     )`,
 ];
 
 export async function ensureMigrated(): Promise<void> {
