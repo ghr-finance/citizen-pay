@@ -115,12 +115,38 @@ async function generateBillsForPeriod(opts: {
     status: "active" | "inactive";
   }>(`SELECT id, full_name, status FROM residents`);
 
+  const history = await query<{
+    resident_id: string;
+    status: "active" | "inactive";
+    effective_year: number;
+    effective_month: number;
+  }>(
+    `SELECT resident_id, status, effective_year, effective_month
+       FROM resident_status_history
+      ORDER BY resident_id, effective_year, effective_month`,
+  );
+  const histByResident = new Map<
+    string,
+    Array<{ status: "active" | "inactive"; effective_year: number; effective_month: number }>
+  >();
+  for (const h of history) {
+    const list = histByResident.get(h.resident_id) ?? [];
+    list.push({ status: h.status, effective_year: h.effective_year, effective_month: h.effective_month });
+    histByResident.set(h.resident_id, list);
+  }
+
   let inserted = 0;
   for (const r of residents) {
+    const periodStatus = statusAtPeriod(
+      histByResident.get(r.id) ?? [],
+      opts.year,
+      opts.month,
+      r.status,
+    );
     const amt = computeBillAmount({
       duesName,
       defaultAmount,
-      residentStatus: r.status,
+      residentStatus: periodStatus,
       residentFullName: r.full_name,
       year: opts.year,
       month: opts.month,
