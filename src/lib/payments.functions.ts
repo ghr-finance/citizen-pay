@@ -67,6 +67,93 @@ export const recordPayment = createServerFn({ method: "POST" })
     return { id: inserted[0].id, receiptNo: inserted[0].receipt_no };
   });
 
+const PayArrearsInput = z.object({
+  residentId: z.string().uuid(),
+  amount: z.number().positive(),
+  method: z.enum(["cash", "transfer", "qris"]),
+  note: z.string().max(500).optional().nullable(),
+});
+
+/**
+ * Bayar tunggakan: alokasi otomatis FIFO ke tagihan terlama (year, month ASC)
+ * yang masih unpaid / partial. Setiap alokasi menghasilkan satu kwitansi.
+ */
+export const payArrears = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => PayArrearsInput.parse(d))
+  .handler(async ({ data }) => {
+    const s = await requireAuth();
+    const bills = await query<{
+      id: string;
+      amount: string;
+      paid_amount: string;
+      dues_name: string;
+      year: number;
+      month: number;
+    }>(
+      `SELECT b.id, b.amount, b.paid_amount, dt.name AS dues_name, dp.year, dp.month
+         FROM bills b
+         JOIN dues_periods dp ON dp.id = b.dues_period_id
+         JOIN dues_types dt ON dt.id = dp.dues_type_id
+         WHERE b.resident_id = $1 AND b.status <> 'paid'
+         ORDER BY dp.year ASC, dp.month ASC, dt.name ASC`,
+      [data.residentId],
+    );
+    if (bills.length === 0) throw new Error("Tidak ada tunggakan");
+
+    let remaining = data.amount;
+    const allocations: Array<{ billId: string; amount: number; paymentId: string; receiptNo: string }> = [];
+
+    // Pre-compute receipt sequence base for this month
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const countRows = await query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM payments
+       WHERE date_trunc('month', paid_at) = date_trunc('month', now())`,
+    );
+    let seqBase = countRows[0].c;
+
+    for (const b of bills) {
+      if (remaining <= 0) break;
+      const due = Number(b.amount) - Number(b.paid_amount);
+      if (due <= 0) continue;
+      const alloc = Math.min(due, remaining);
+      const newPaid = Number(b.paid_amount) + alloc;
+      const status = newPaid >= Number(b.amount) ? "paid" : "partial";
+
+      seqBase += 1;
+      const receiptNo = `GHR/${yy}${mm}/${String(seqBase).padStart(4, "0")}`;
+
+      const inserted = await query<{ id: string }>(
+        `INSERT INTO payments (bill_id, resident_id, amount, method, note, receipt_no, recorded_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [
+          b.id,
+          data.residentId,
+          alloc,
+          data.method,
+          data.note || null,
+          receiptNo,
+          s.userId,
+        ],
+      );
+      await query(
+        `UPDATE bills SET paid_amount=$1, status=$2 WHERE id=$3`,
+        [newPaid, status, b.id],
+      );
+      allocations.push({ billId: b.id, amount: alloc, paymentId: inserted[0].id, receiptNo });
+      remaining -= alloc;
+    }
+
+    return {
+      allocated: data.amount - remaining,
+      remaining,
+      count: allocations.length,
+      allocations,
+    };
+  });
+
+
 export const listPayments = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z
