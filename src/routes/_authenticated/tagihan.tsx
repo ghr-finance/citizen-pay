@@ -32,6 +32,7 @@ function TagihanPage() {
   const fetchByResident = useServerFn(listOutstandingByResident);
   const fetchResidentBills = useServerFn(getResidentBills);
   const payFn = useServerFn(recordPayment);
+  const payArrearsFn = useServerFn(payArrears);
   const genFn = useServerFn(generateAllPending);
   const qc = useQueryClient();
   const now = new Date();
@@ -59,6 +60,9 @@ function TagihanPage() {
   });
 
   const [payTarget, setPayTarget] = useState<Bill | null>(null);
+  const [arrearsTarget, setArrearsTarget] = useState<
+    { residentId: string; name: string; outstanding: number } | null
+  >(null);
   const pay = useMutation({
     mutationFn: (v: { billId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) => payFn({ data: v }),
     onSuccess: (r) => {
@@ -68,6 +72,22 @@ function TagihanPage() {
       qc.invalidateQueries({ queryKey: ["payments"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       setPayTarget(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
+  });
+  const payArrearsMut = useMutation({
+    mutationFn: (v: { residentId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) =>
+      payArrearsFn({ data: v }),
+    onSuccess: (r) => {
+      toast.success(
+        `Teralokasi ke ${r.count} tagihan · ${formatRupiah(r.allocated)}` +
+          (r.remaining > 0 ? ` · sisa kembalian ${formatRupiah(r.remaining)}` : ""),
+      );
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["bills-by-resident"] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      setArrearsTarget(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
   });
@@ -164,14 +184,30 @@ function TagihanPage() {
                             )}
                           </td>
                           <td className="py-2 pr-4 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={r.bill_count === 0}
-                              onClick={() => downloadInvoice(r.resident_id)}
-                            >
-                              <FileDown className="size-3 mr-1" /> Surat Tagihan
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                disabled={outstanding <= 0}
+                                onClick={() =>
+                                  setArrearsTarget({
+                                    residentId: r.resident_id,
+                                    name: r.full_name,
+                                    outstanding,
+                                  })
+                                }
+                              >
+                                <Coins className="size-3 mr-1" /> Bayar Tunggakan
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={r.bill_count === 0}
+                                onClick={() => downloadInvoice(r.resident_id)}
+                              >
+                                <FileDown className="size-3 mr-1" /> Surat Tagihan
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );
