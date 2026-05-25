@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { listBills, listOutstandingByResident, getResidentBills } from "@/lib/bills.functions";
-import { recordPayment } from "@/lib/payments.functions";
+import { recordPayment, payArrears } from "@/lib/payments.functions";
 import { generateAllPending } from "@/lib/dues.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRupiah, BULAN_ID, formatTanggal } from "@/lib/format";
-import { Wallet, FileDown, RefreshCw } from "lucide-react";
+import { Wallet, FileDown, RefreshCw, Coins } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tagihan")({
@@ -32,6 +32,7 @@ function TagihanPage() {
   const fetchByResident = useServerFn(listOutstandingByResident);
   const fetchResidentBills = useServerFn(getResidentBills);
   const payFn = useServerFn(recordPayment);
+  const payArrearsFn = useServerFn(payArrears);
   const genFn = useServerFn(generateAllPending);
   const qc = useQueryClient();
   const now = new Date();
@@ -59,6 +60,9 @@ function TagihanPage() {
   });
 
   const [payTarget, setPayTarget] = useState<Bill | null>(null);
+  const [arrearsTarget, setArrearsTarget] = useState<
+    { residentId: string; name: string; outstanding: number } | null
+  >(null);
   const pay = useMutation({
     mutationFn: (v: { billId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) => payFn({ data: v }),
     onSuccess: (r) => {
@@ -68,6 +72,22 @@ function TagihanPage() {
       qc.invalidateQueries({ queryKey: ["payments"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       setPayTarget(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
+  });
+  const payArrearsMut = useMutation({
+    mutationFn: (v: { residentId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) =>
+      payArrearsFn({ data: v }),
+    onSuccess: (r) => {
+      toast.success(
+        `Teralokasi ke ${r.count} tagihan · ${formatRupiah(r.allocated)}` +
+          (r.remaining > 0 ? ` · sisa kembalian ${formatRupiah(r.remaining)}` : ""),
+      );
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["bills-by-resident"] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      setArrearsTarget(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Gagal"),
   });
@@ -164,14 +184,30 @@ function TagihanPage() {
                             )}
                           </td>
                           <td className="py-2 pr-4 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={r.bill_count === 0}
-                              onClick={() => downloadInvoice(r.resident_id)}
-                            >
-                              <FileDown className="size-3 mr-1" /> Surat Tagihan
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                disabled={outstanding <= 0}
+                                onClick={() =>
+                                  setArrearsTarget({
+                                    residentId: r.resident_id,
+                                    name: r.full_name,
+                                    outstanding,
+                                  })
+                                }
+                              >
+                                <Coins className="size-3 mr-1" /> Bayar Tunggakan
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={r.bill_count === 0}
+                                onClick={() => downloadInvoice(r.resident_id)}
+                              >
+                                <FileDown className="size-3 mr-1" /> Surat Tagihan
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -279,7 +315,99 @@ function TagihanPage() {
         onPay={(v) => pay.mutate(v)}
         running={pay.isPending}
       />
+      <ArrearsDialog
+        target={arrearsTarget}
+        onClose={() => setArrearsTarget(null)}
+        onPay={(v) => payArrearsMut.mutate(v)}
+        running={payArrearsMut.isPending}
+      />
     </div>
+  );
+}
+
+function ArrearsDialog({
+  target, onClose, onPay, running,
+}: {
+  target: { residentId: string; name: string; outstanding: number } | null;
+  onClose: () => void;
+  onPay: (v: { residentId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) => void;
+  running: boolean;
+}) {
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<"cash" | "transfer" | "qris">("cash");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (target) {
+      setAmount(String(target.outstanding));
+      setMethod("cash");
+      setNote("");
+    }
+  }, [target]);
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Bayar Tunggakan</DialogTitle>
+        </DialogHeader>
+        {target && (
+          <div className="space-y-3">
+            <div className="rounded-lg bg-accent/50 p-3 text-sm">
+              <div className="font-medium">{target.name}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Pembayaran akan dialokasikan otomatis ke tagihan terlama lebih dulu (FIFO).
+              </div>
+              <div className="mt-2 flex justify-between">
+                <span>Total tunggakan</span>
+                <span className="font-mono font-semibold">{formatRupiah(target.outstanding)}</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Jumlah dibayar</Label>
+              <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              {Number(amount) > target.outstanding && (
+                <p className="text-xs text-muted-foreground">
+                  Sisa {formatRupiah(Number(amount) - target.outstanding)} akan dikembalikan (tidak dialokasikan).
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>Metode</Label>
+              <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Tunai</SelectItem>
+                  <SelectItem value="transfer">Transfer</SelectItem>
+                  <SelectItem value="qris">QRIS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Catatan</Label>
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsional" />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Batal</Button>
+          <Button
+            disabled={!target || running || !Number(amount)}
+            onClick={() =>
+              target &&
+              onPay({
+                residentId: target.residentId,
+                amount: Number(amount),
+                method,
+                note: note.trim() || null,
+              })
+            }
+          >
+            {running ? "Memproses…" : "Alokasikan & Simpan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
