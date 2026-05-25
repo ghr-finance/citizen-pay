@@ -315,7 +315,99 @@ function TagihanPage() {
         onPay={(v) => pay.mutate(v)}
         running={pay.isPending}
       />
+      <ArrearsDialog
+        target={arrearsTarget}
+        onClose={() => setArrearsTarget(null)}
+        onPay={(v) => payArrearsMut.mutate(v)}
+        running={payArrearsMut.isPending}
+      />
     </div>
+  );
+}
+
+function ArrearsDialog({
+  target, onClose, onPay, running,
+}: {
+  target: { residentId: string; name: string; outstanding: number } | null;
+  onClose: () => void;
+  onPay: (v: { residentId: string; amount: number; method: "cash" | "transfer" | "qris"; note?: string | null }) => void;
+  running: boolean;
+}) {
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<"cash" | "transfer" | "qris">("cash");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (target) {
+      setAmount(String(target.outstanding));
+      setMethod("cash");
+      setNote("");
+    }
+  }, [target]);
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Bayar Tunggakan</DialogTitle>
+        </DialogHeader>
+        {target && (
+          <div className="space-y-3">
+            <div className="rounded-lg bg-accent/50 p-3 text-sm">
+              <div className="font-medium">{target.name}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Pembayaran akan dialokasikan otomatis ke tagihan terlama lebih dulu (FIFO).
+              </div>
+              <div className="mt-2 flex justify-between">
+                <span>Total tunggakan</span>
+                <span className="font-mono font-semibold">{formatRupiah(target.outstanding)}</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Jumlah dibayar</Label>
+              <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              {Number(amount) > target.outstanding && (
+                <p className="text-xs text-muted-foreground">
+                  Sisa {formatRupiah(Number(amount) - target.outstanding)} akan dikembalikan (tidak dialokasikan).
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>Metode</Label>
+              <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Tunai</SelectItem>
+                  <SelectItem value="transfer">Transfer</SelectItem>
+                  <SelectItem value="qris">QRIS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Catatan</Label>
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsional" />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Batal</Button>
+          <Button
+            disabled={!target || running || !Number(amount)}
+            onClick={() =>
+              target &&
+              onPay({
+                residentId: target.residentId,
+                amount: Number(amount),
+                method,
+                note: note.trim() || null,
+              })
+            }
+          >
+            {running ? "Memproses…" : "Alokasikan & Simpan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
