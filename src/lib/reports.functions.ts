@@ -43,7 +43,10 @@ export const dashboardStats = createServerFn({ method: "GET" }).handler(
           `SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS ym,
                   SUM(amount)::text AS total
              FROM payments
-             WHERE paid_at >= now() - interval '6 months'
+             WHERE paid_at >= GREATEST(
+                     date_trunc('month', now()) - interval '5 months',
+                     DATE '2026-01-01'
+                   )
              GROUP BY 1 ORDER BY 1`,
         ),
       ]);
