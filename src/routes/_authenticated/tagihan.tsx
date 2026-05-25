@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { listBills, listOutstandingByResident, getResidentBills } from "@/lib/bills.functions";
-import { recordPayment } from "@/lib/payments.functions";
+import { recordPayment, payArrears } from "@/lib/payments.functions";
 import { generateAllPending } from "@/lib/dues.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRupiah, BULAN_ID, formatTanggal } from "@/lib/format";
-import { Wallet, FileDown, RefreshCw } from "lucide-react";
+import { Wallet, FileDown, RefreshCw, Coins } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tagihan")({
